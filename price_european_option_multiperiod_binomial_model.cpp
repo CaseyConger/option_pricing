@@ -4,7 +4,7 @@
 using namespace std;
 
 
-// Node struct
+// Node struct used for storing the "leafs" in these trees
 struct node
 {
 	double value;
@@ -26,15 +26,21 @@ public:
 	// Constructors & Destructors
 	Tree();
 	Tree(int numTimeSteps);
-	~Tree();
+	// ~Tree();
 
 
 	double value(int time, int height);
 	void set(int time, int height, double value);
 
+	node ** nodeArray();
+
 	void print();
 
 };
+
+node ** Tree::nodeArray(){
+	return _treeArray;
+}
 
 Tree::Tree(int numTimeSteps) {
 	_numTimeSteps = numTimeSteps;
@@ -54,9 +60,9 @@ Tree::Tree(int numTimeSteps) {
 	}
 }
 
-Tree::~Tree() {
-	delete _treeArray;
-}
+// Tree::~Tree() {
+// 	delete _treeArray;
+// }
 
 double Tree::value(int time, int height) {
 	return _treeArray[time][height].value;
@@ -78,9 +84,11 @@ void Tree::print() {
 	}
 }
 
+class OptionPriceTree;
 
 // Security Tree
 class SecurityTree : public Tree {
+friend class OptionPriceTree;
 private:
 	double _up;
 	double _down;
@@ -110,6 +118,78 @@ SecurityTree::SecurityTree(double upFactor,
 }
 
 
+
+class OptionTree : public Tree {
+protected:
+	double _strike;
+	int _expiration;
+	string _type;
+
+};
+
+
+
+
+
+class OptionPriceTree : public Tree {
+private:
+	double _strike;
+	int _expiration;
+	double _riskFreeRate;
+	double _upProb;
+	double _downProb;
+	string _type;
+	SecurityTree _securityTree();
+
+public:
+	OptionPriceTree(string optionType,
+			   double strike,
+			   int expiration,
+			   double riskFreeRate,
+			   SecurityTree securityTree);
+
+};
+
+OptionPriceTree::OptionPriceTree(string optionType,
+					   double strike,
+					   int expiration,
+					   double riskFreeRate,
+					   SecurityTree securityTree)
+				: Tree(expiration) {
+	_strike = strike;
+	_expiration = expiration;
+	_riskFreeRate = riskFreeRate;
+	_type = optionType;
+	double up = securityTree._up;
+	double down = securityTree._down;
+
+	_upProb = (_riskFreeRate - down)/(up - down);
+	_downProb = 1.0 - _upProb;
+	
+
+	for (int j = 0; j <= expiration; j++) {
+		double tmp = securityTree.nodeArray()[expiration][j].value - _strike;
+		_treeArray[expiration][j].value = tmp > 0 ? tmp : 0;
+	}
+
+	if (optionType == "call") {
+		for (int i = _numTimeSteps - 1; i >=0 ; --i)
+		{
+			for (int j = 0; j <= i; ++j)
+			{
+				
+				_treeArray[i][j].value = _upProb * _treeArray[i+1][j+1].value;
+				_treeArray[i][j].value += _downProb * _treeArray[i+1][j].value;
+				_treeArray[i][j].value *= 1.0/_riskFreeRate;
+			}
+		}
+	}	
+}
+
+
+
+
+
 int main(int argc, char* argv[]) {
 	// cout << "---------------------------------------------------------------";
 	// cout << "--------" << endl;
@@ -123,8 +203,15 @@ int main(int argc, char* argv[]) {
 	// cout << "--------" << endl;
 
 
-	SecurityTree first_tree(2.0, 100., 15);
+	SecurityTree first_tree(1.06529, 100., 1);
+	SecurityTree second_tree(3.0, 200.0, 15);
+	OptionPriceTree opt_tree("call", 100.0, 1, 1.01, first_tree);
 	first_tree.print();
+	opt_tree.print();
+
+	cout << opt_tree.value(0,0) << endl;
+
+
 
 
 	return 0;
