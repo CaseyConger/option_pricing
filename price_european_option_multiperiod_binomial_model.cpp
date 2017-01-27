@@ -84,11 +84,13 @@ void Tree::print() {
 	}
 }
 
-class OptionPriceTree;
+
+
+class OptionTree;
 
 // Security Tree
 class SecurityTree : public Tree {
-friend class OptionPriceTree;
+friend class OptionTree;
 private:
 	double _up;
 	double _down;
@@ -118,31 +120,57 @@ SecurityTree::SecurityTree(double upFactor,
 }
 
 
-
-class OptionTree : public Tree {
-protected:
-	double _strike;
-	int _expiration;
-	string _type;
-
+// enum that stores the different option types available
+enum OptionType
+{
+	call,
+	put
 };
 
+// Class that will store the pay off functions for different option types
+class PayOff
+{
+private:
+	double _strike;
+	OptionType _optionType;
+
+public:
+	PayOff(double strike,
+		   OptionType optionType);
+	double operator()(double spot) const;
+};
+
+PayOff::PayOff(double strike,
+			   OptionType optionType)
+{
+	_strike = strike;
+	_optionType = optionType;
+}
+
+double PayOff::operator ()(double spot) const
+{
+	switch (_optionType)
+	{
+	case call :
+		return max(spot - _strike, 0.0);
+	case put :
+		return max(_strike - spot, 0.0);
+	}
+}
 
 
-
-
-class OptionPriceTree : public Tree {
+class OptionTree : public Tree {
 private:
 	double _strike;
 	int _expiration;
 	double _riskFreeRate;
 	double _upProb;
 	double _downProb;
-	string _type;
+	enum  OptionType {call, put};
 	SecurityTree _securityTree();
 
 public:
-	OptionPriceTree(string optionType,
+	OptionTree(string optionType,
 			   double strike,
 			   int expiration,
 			   double riskFreeRate,
@@ -150,7 +178,7 @@ public:
 
 };
 
-OptionPriceTree::OptionPriceTree(string optionType,
+OptionTree::OptionTree(string optionType,
 					   double strike,
 					   int expiration,
 					   double riskFreeRate,
@@ -159,7 +187,7 @@ OptionPriceTree::OptionPriceTree(string optionType,
 	_strike = strike;
 	_expiration = expiration;
 	_riskFreeRate = riskFreeRate;
-	_type = optionType;
+	// _optionType = optionType;
 	double up = securityTree._up;
 	double down = securityTree._down;
 
@@ -201,11 +229,12 @@ int main(int argc, char* argv[]) {
 	// cout << "--------" << endl;
 	// cout << "---------------------------------------------------------------";
 	// cout << "--------" << endl;
-
+	PayOff payOff(105.0, call);
+	cout << payOff(200.) << endl;
 
 	SecurityTree first_tree(1.06529, 100., 1);
 	SecurityTree second_tree(3.0, 200.0, 15);
-	OptionPriceTree opt_tree("call", 100.0, 1, 1.01, first_tree);
+	OptionTree opt_tree("call", 100.0, 1, 1.01, first_tree);
 	first_tree.print();
 	opt_tree.print();
 
