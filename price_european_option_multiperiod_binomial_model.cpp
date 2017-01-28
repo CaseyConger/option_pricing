@@ -38,20 +38,26 @@ public:
 
 };
 
-node ** Tree::nodeArray(){
+node ** Tree::nodeArray()
+{
 	return _treeArray;
 }
 
-Tree::Tree(int numTimeSteps) {
+Tree::Tree(int numTimeSteps)
+{
 	_numTimeSteps = numTimeSteps;
 	_treeArray = new node*[numTimeSteps + 1];
 	_treeArray[0] = new node[1];
-	for (int i = 1; i <= _numTimeSteps; ++i) {
+
+	for (int i = 1; i <= _numTimeSteps; ++i)
+	{
 		_treeArray[i] = new node[i + 2];
 	}
 
-	for (int i = 0; i < _numTimeSteps + 1; ++i) {
-		for (int j = 0; j <= i; ++j){
+	for (int i = 0; i < _numTimeSteps + 1; ++i)
+	{
+		for (int j = 0; j <= i; ++j)
+		{
 			_treeArray[i][j].time = i;
 			_treeArray[i][j].height = j;
 			_treeArray[i][j].down = &_treeArray[i + 1][j];
@@ -64,23 +70,28 @@ Tree::Tree(int numTimeSteps) {
 // 	delete _treeArray;
 // }
 
-double Tree::value(int time, int height) {
+double Tree::value(int time, int height)
+{
 	return _treeArray[time][height].value;
 }
 
-void Tree::set(int time, int height, double value) {
-	
+void Tree::set(int time, int height, double value)
+{	
 	_treeArray[time][height].value = value;
 	_treeArray[time][height].time = time;
 	_treeArray[time][height].height = height;
 }
 
-void Tree::print() {
-	for (int i = 0; i < _numTimeSteps + 1; ++i) {
-		for (int j = 0; j <= i; ++j) {
+void Tree::print()
+{
+	for (int i = 0; i < _numTimeSteps + 1; ++i)
+	{
+		for (int j = 0; j <= i; ++j)
+		{
 			cout << "[" << i << "][" << j << "] = ";
-			cout << _treeArray[i][j].value << endl;
+			cout << _treeArray[i][j].value << " ";
 		}
+		cout << endl;
 	}
 }
 
@@ -89,12 +100,16 @@ void Tree::print() {
 class OptionTree;
 
 // Security Tree
-class SecurityTree : public Tree {
+class SecurityTree
+: public Tree
+{
 friend class OptionTree;
+
 private:
 	double _up;
 	double _down;
 	double _S_0;
+
 public:
 	SecurityTree(double upFactor,
 				 double S_0,
@@ -105,7 +120,8 @@ public:
 SecurityTree::SecurityTree(double upFactor,
 						   double S_0,
 						   int numTimeSteps)
-				: Tree(numTimeSteps) {
+: Tree(numTimeSteps)
+{
 	_up = upFactor;
 	_down = 1.0/_up;
 	_S_0 = S_0;
@@ -128,26 +144,26 @@ enum OptionType
 };
 
 // Class that will store the pay off functions for different option types
-class PayOff
+class Payoff
 {
 private:
 	double _strike;
 	OptionType _optionType;
 
 public:
-	PayOff(double strike,
-		   OptionType optionType);
+	Payoff(OptionType optionType,
+		   double strike);
 	double operator()(double spot) const;
 };
 
-PayOff::PayOff(double strike,
-			   OptionType optionType)
+Payoff::Payoff(OptionType optionType,
+			   double strike)
 {
-	_strike = strike;
 	_optionType = optionType;
+	_strike = strike;
 }
 
-double PayOff::operator ()(double spot) const
+double Payoff::operator ()(double spot) const
 {
 	switch (_optionType)
 	{
@@ -155,70 +171,86 @@ double PayOff::operator ()(double spot) const
 		return max(spot - _strike, 0.0);
 	case put :
 		return max(_strike - spot, 0.0);
+	default:
+		throw("Option type undefined.");
 	}
 }
 
 
-class OptionTree : public Tree {
+class OptionTree
+:
+	public Tree
+{
 private:
 	double _strike;
 	int _expiration;
 	double _riskFreeRate;
 	double _upProb;
 	double _downProb;
-	enum  OptionType {call, put};
-	SecurityTree _securityTree();
+	OptionType _optionType;
+	Payoff * _payoff();
+	SecurityTree _underlyingTree();
+	// Tree * _priceTree;
+
+	// Tree * makePriceTree();
 
 public:
-	OptionTree(string optionType,
-			   double strike,
+	OptionTree(OptionType optionType,
+			   Payoff payoff,
 			   int expiration,
 			   double riskFreeRate,
-			   SecurityTree securityTree);
+			   SecurityTree underlyingTree);
 
 };
 
-OptionTree::OptionTree(string optionType,
-					   double strike,
+OptionTree::OptionTree(OptionType optionType,
+					   Payoff payoff,
 					   int expiration,
 					   double riskFreeRate,
-					   SecurityTree securityTree)
-				: Tree(expiration) {
-	_strike = strike;
-	_expiration = expiration;
+					   SecurityTree underlyingTree)
+:
+	Tree(expiration)
+{
+	_numTimeSteps = expiration;
 	_riskFreeRate = riskFreeRate;
-	// _optionType = optionType;
-	double up = securityTree._up;
-	double down = securityTree._down;
+	_optionType = optionType;
+	
+
+
+	double up = underlyingTree._up;
+	double down = underlyingTree._down;
 
 	_upProb = (_riskFreeRate - down)/(up - down);
 	_downProb = 1.0 - _upProb;
 	
-
-	for (int j = 0; j <= expiration; j++) {
-		double tmp = securityTree.nodeArray()[expiration][j].value - _strike;
-		_treeArray[expiration][j].value = tmp > 0 ? tmp : 0;
+	for (int j = 0; j <= _numTimeSteps; j++)
+	{
+		double tmp = underlyingTree.nodeArray()[_numTimeSteps][j].value;
+		_treeArray[_numTimeSteps][j].value = payoff(tmp);
 	}
 
-	if (optionType == "call") {
+	switch (_optionType)
+	{
+	case call :
 		for (int i = _numTimeSteps - 1; i >=0 ; --i)
 		{
 			for (int j = 0; j <= i; ++j)
 			{
-				
 				_treeArray[i][j].value = _upProb * _treeArray[i+1][j+1].value;
 				_treeArray[i][j].value += _downProb * _treeArray[i+1][j].value;
 				_treeArray[i][j].value *= 1.0/_riskFreeRate;
 			}
 		}
+	case put :
+		break;
 	}	
 }
 
 
 
 
-
-int main(int argc, char* argv[]) {
+int main(int argc, char* argv[])
+{
 	// cout << "---------------------------------------------------------------";
 	// cout << "--------" << endl;
 	// cout << "---------------------------------------------------------------";
@@ -229,12 +261,12 @@ int main(int argc, char* argv[]) {
 	// cout << "--------" << endl;
 	// cout << "---------------------------------------------------------------";
 	// cout << "--------" << endl;
-	PayOff payOff(105.0, call);
-	cout << payOff(200.) << endl;
+	Payoff payoff(call, 105.0);
+	cout << payoff(200.) << endl;
 
 	SecurityTree first_tree(1.06529, 100., 1);
 	SecurityTree second_tree(3.0, 200.0, 15);
-	OptionTree opt_tree("call", 100.0, 1, 1.01, first_tree);
+	OptionTree opt_tree(call, payoff, 1, 1.01, first_tree);
 	first_tree.print();
 	opt_tree.print();
 
